@@ -2,18 +2,20 @@ import numpy as np
 import np.linalg as la
 import matplotlib.pyplot as plt
 
-def newton(function,derivee,a,eps):
+epsilon = np.finfo().eps
+
+def newton(a,eps):
     delta = 1
     while delta > eps:
-        x = -fonction(a)/derivee(a) + a
+        x = -function(a)/derivative(a) + a
         delta = abs(x - a)
         a = x
     return x , delta
 
 def function(x):
-return 0.1*x**3-x+1
+    return 0.1*x**3-x+1
 
-def derivee(x):
-    return (function(x
-        
-print( newton(lambda x: 0.1*x**3-x+1 , lambda x: 0.3*x**2-1 , 0 , 0.001) )
+def derivative(x):
+    return (function(x+epsilon)-function(x))/epsilon
+
+print(newton(0, 0.001))
