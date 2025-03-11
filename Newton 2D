@@ -1,0 +1,174 @@
+#%% Newton en 2D
+
+
+# Définition du système
+x, y = sym.symbols('x y')
+f = x - sym.sin(x + y)
+g = y - sym.cos(x - y)
+
+# Calcul des dérivées partielles pour la jacobienne
+df_dx = sym.diff(f, x)
+df_dy = sym.diff(f, y)
+dg_dx = sym.diff(g, x)
+dg_dy = sym.diff(g, y)
+
+# Création des fonctions lambda pour évaluation numérique
+f_func = sym.lambdify((x, y), f, "numpy")
+g_func = sym.lambdify((x, y), g, "numpy")
+df_dx_func = sym.lambdify((x, y), df_dx, "numpy")
+df_dy_func = sym.lambdify((x, y), df_dy, "numpy")
+dg_dx_func = sym.lambdify((x, y), dg_dx, "numpy")
+dg_dy_func = sym.lambdify((x, y), dg_dy, "numpy")
+
+def newton_2d(x0, y0, epsilon=1e-6, max_iter=50):
+    """
+    Implémentation de la méthode de Newton en 2D pour résoudre f(x,y)=0, g(x,y)=0
+    Retourne la solution et le nombre d'itérations, ou None si pas de convergence
+    """
+    x_curr, y_curr = x0, y0
+    
+    for i in range(max_iter):
+        # Évaluer les fonctions au point courant
+        f_val = f_func(x_curr, y_curr)
+        g_val = g_func(x_curr, y_curr)
+        
+        # Vérifier la convergence
+        if np.sqrt(f_val**2 + g_val**2) < epsilon:
+            return (x_curr, y_curr), i
+        
+        # Évaluer la jacobienne au point courant
+        j11 = df_dx_func(x_curr, y_curr)
+        j12 = df_dy_func(x_curr, y_curr)
+        j21 = dg_dx_func(x_curr, y_curr)
+        j22 = dg_dy_func(x_curr, y_curr)
+        
+        # Calculer le déterminant
+        det = j11*j22 - j12*j21
+        
+        # Vérifier si la jacobienne est inversible
+        if abs(det) < 1e-10:
+            return None, i
+        
+        # Calculer l'inverse de la jacobienne
+        inv_j11 = j22 / det
+        inv_j12 = -j12 / det
+        inv_j21 = -j21 / det
+        inv_j22 = j11 / det
+        
+        # Calculer le pas de Newton
+        dx = -(inv_j11 * f_val + inv_j12 * g_val)
+        dy = -(inv_j21 * f_val + inv_j22 * g_val)
+        
+        # Mettre à jour le point courant
+        x_curr += dx
+        y_curr += dy
+        
+    return None, max_iter
+
+# Trouver d'abord les solutions pour les identifier
+print("Recherche des solutions potentielles...")
+solutions = []
+x_range = np.linspace(-5, 5, 20)
+y_range = np.linspace(-5, 5, 20)
+
+for x_start in x_range:
+    for y_start in y_range:
+        sol, _ = newton_2d(x_start, y_start)
+        if sol is not None:
+            # Arrondir pour regrouper les solutions proches
+            sol_rounded = (round(sol[0], 4), round(sol[1], 4))
+            if sol_rounded not in [tuple(map(lambda x: round(x, 4), s)) for s in solutions]:
+                solutions.append(sol)
+
+print(f"Nombre de solutions trouvées: {len(solutions)}")
+for i, sol in enumerate(solutions):
+    print(f"Solution {i+1}: x = {sol[0]:.6f}, y = {sol[1]:.6f}")
+    print(f"  f(x,y) = {f_func(sol[0], sol[1]):.6e}, g(x,y) = {g_func(sol[0], sol[1]):.6e}")
+
+# Calcul des bassins d'attraction
+print("Calcul des bassins d'attraction...")
+start_time = time.time()
+
+# Paramètres de la grille
+x_min, x_max = -5, 5
+y_min, y_max = -5, 5
+resolution = 300  # Nombre de points dans chaque direction
+
+# Créer la grille
+x_grid = np.linspace(x_min, x_max, resolution)
+y_grid = np.linspace(y_min, y_max, resolution)
+X, Y = np.meshgrid(x_grid, y_grid)
+
+# Initialiser la matrice des bassins et des itérations
+basins = np.zeros(X.shape, dtype=int)
+iterations = np.zeros(X.shape, dtype=int)
+
+# Calcul pour chaque point initial
+for i in range(resolution):
+    if i % 30 == 0:
+        print(f"Progression: {i/resolution*100:.1f}%")
+    for j in range(resolution):
+        sol, n_iter = newton_2d(X[i, j], Y[i, j])
+        iterations[i, j] = n_iter
+        
+        if sol is not None:
+            # Trouver la solution la plus proche
+            min_dist = float('inf')
+            closest_idx = -1
+            for k, known_sol in enumerate(solutions):
+                dist = (sol[0] - known_sol[0])**2 + (sol[1] - known_sol[1])**2
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_idx = k
+            
+            if closest_idx >= 0 and min_dist < 0.01:  # Seuil de proximité
+                basins[i, j] = closest_idx + 1
+            else:
+                basins[i, j] = 0  # Solutions inconnues ou pas de convergence
+
+print(f"Calcul terminé en {time.time() - start_time:.2f} secondes")
+
+# Visualisation des bassins d'attraction
+plt.figure(figsize=(12, 10))
+
+# Créer une colormap avec des couleurs distinctes
+n_sols = len(solutions) + 1  # +1 pour les non-convergents
+colors = plt.cm.tab10(np.linspace(0, 1, n_sols))
+colors[0] = [0, 0, 0, 1]  # Noir pour les non-convergents
+cmap = ListedColormap(colors)
+norm = BoundaryNorm(np.arange(n_sols+1) - 0.5, n_sols)
+
+# Tracer les bassins
+plt.subplot(121)
+im = plt.imshow(basins, extent=[x_min, x_max, y_min, y_max], 
+                origin='lower', cmap=cmap, norm=norm, interpolation='nearest')
+plt.colorbar(im, ticks=range(n_sols), 
+             label='Bassin d\'attraction vers solution #')
+plt.title('Bassins d\'attraction de la méthode de Newton')
+plt.xlabel('x')
+plt.ylabel('y')
+
+# Marquer les solutions
+for i, sol in enumerate(solutions):
+    plt.plot(sol[0], sol[1], 'r*', markersize=10)
+    plt.annotate(f"{i+1}", (sol[0], sol[1]), 
+                 xytext=(10, 10), textcoords='offset points')
+
+# Visualisation du nombre d'itérations
+plt.subplot(122)
+im2 = plt.imshow(iterations, extent=[x_min, x_max, y_min, y_max], 
+                origin='lower', cmap='viridis', interpolation='nearest')
+plt.colorbar(im2, label='Nombre d\'itérations')
+plt.title('Nombre d\'itérations pour converger')
+plt.xlabel('x')
+plt.ylabel('y')
+
+# Marquer les solutions
+for i, sol in enumerate(solutions):
+    plt.plot(sol[0], sol[1], 'r*', markersize=10)
+    plt.annotate(f"{i+1}", (sol[0], sol[1]), 
+                 xytext=(10, 10), textcoords='offset points')
+
+plt.tight_layout()
+plt.savefig('newton_basins.png', dpi=300)
+plt.show()
