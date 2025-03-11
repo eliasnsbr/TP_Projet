@@ -1,0 +1,51 @@
+import numpy as np
+import numpy.linalg as la
+#import matplotlib.pyplot as plt
+
+epsilon_m = np.array([np.finfo(np.float64).eps, np.finfo(np.float64).eps])
+
+def function(A):
+	#return (x**2 - y + y**2, 2*x -np.log(y)) # ATTENTION D(f) = R+*
+	return (A[0] - np.sin(A[0]+A[1]), A[1]-np.cos(A[0]-A[1]))
+
+def J(A):
+	"""
+	Parameters
+	----------
+	A : list
+		vector of position.
+
+	Returns
+	-------
+	list of list
+		Jacobian matrix of function at the point A.
+
+	"""
+	epsilon = 1e-6
+	dX = [(function([A[0]+epsilon,A[1]])[0]-function([A[0],A[1]])[0])/epsilon, (function([A[0]+epsilon,A[1]])[1]-function([A[0],A[1]])[1])/epsilon]
+	dY = [(function([A[0],A[1]+epsilon])[0]-function([A[0],A[1]])[0])/epsilon, (function([A[0],A[1]+epsilon])[1]-function([A[0],A[1]])[1])/epsilon]
+	return [dX, dY]
+
+def newton(A,eps):
+	"""
+	Parameters
+	----------
+	A : list
+		vector representing the origin coordinates of the optimization.
+	eps : float
+		maximum uncertainty on the root.
+
+	Returns
+	-------
+	X : list
+		vector representing the coordinates of the root.
+	"""
+	Delta = [1,1]
+	while np.max(Delta) > eps :
+		print(J(A))
+		X = A - la.inv(J(A+epsilon_m))*function(A)
+		Delta = abs(X - A)
+		A = X
+	return X
+
+R = newton([1,0.5], 1e-4)
