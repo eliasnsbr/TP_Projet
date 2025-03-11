@@ -1,21 +1,36 @@
 import numpy as np
-import np.linalg as la
 import matplotlib.pyplot as plt
 
-epsilon = np.finfo().eps
+# Définition d'un epsilon plus grand pour éviter les erreurs numériques
+epsilon = 1e-6  
 
-def newton(a,eps):
-    delta = 1
-    while delta > eps:
-        x = -function(a)/derivative(a) + a
-        delta = abs(x - a)
-        a = x
-    return x , delta
+def newton(a, eps):
+    delta = 1  # Initialisation de delta
+    iter_max = 100  # Nombre maximum d'itérations pour éviter une boucle infinie
+    n_iter = 0
+    
+    while delta > eps and n_iter < iter_max:
+        if abs(derivative(a)) < epsilon:  # Empêche la division par un très petit nombre
+            print("Dérivée proche de zéro : risque de divergence.")
+            return None, None
+        
+        x = a - function(a) / (derivative(a) + 1e-6)  # Correction pour éviter NaN
+        delta = abs(x - a)  
+        a = x  
+        n_iter += 1  # Incrémente le compteur d'itérations
+    
+    if n_iter == iter_max:
+        print("Newton n'a pas convergé en", iter_max, "itérations.")
+        return None, None
+
+    return x, delta  
 
 def function(x):
-    return 0.1*x**3-x+1
+    return 0.1*x**3 - x + 1  
 
 def derivative(x):
-    return (function(x+epsilon)-function(x))/epsilon
+    return (function(x + epsilon) - function(x)) / epsilon  # Approximation numérique
 
-print(newton(0, 0.001))
+# Exécution de la méthode de Newton
+resultat = newton(0, 0.001)
+print("Résultat :", resultat)
