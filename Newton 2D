@@ -1,5 +1,11 @@
 #%% Newton en 2D
 
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy as sp
+import sympy as sym  # Importer sympy correctement
+from matplotlib.colors import ListedColormap, BoundaryNorm
+import time
 
 # Définition du système
 x, y = sym.symbols('x y')
