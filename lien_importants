@@ -1,1 +1,8 @@
 https://www.mathweb.fr/euclide/methode-de-newton/
+
+
+
+
+
+
+OSEF --> $\frac{d f}{dx}(x_n) \underset{x\to x_n}{=} \frac{f(x_n)-f(x)}{x_n - x}$
