@@ -1,0 +1,111 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+#%% Pour un seul point déterminé
+
+
+# Définition du point initial
+z0 = -2 + 0.5j  
+T = [z0]
+
+# Newton's method iteration
+z = z0
+for n in range(10):  # 10 itérations
+    z = z - ((z**3 - 1) / (3 * z**2))
+    T.append(z)
+    
+print (T)
+
+# Extraction des parties réelles et imaginaires
+real_parts = [z.real for z in T]
+imag_parts = [z.imag for z in T]
+
+# Tracé du graphe
+plt.plot(real_parts, imag_parts, 'o-', label="Itérations de Newton")
+plt.xlabel("Partie réelle")
+plt.ylabel("Partie imaginaire")
+plt.title("Convergence de la méthode de Newton")
+plt.axhline(0, color='black', linewidth=0.5)
+plt.axvline(0, color='black', linewidth=0.5)
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+#%% PLusieurs points aléatoirements répartis
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Définir les racines de z^3 - 1 = 0
+roots = [1, -0.5 + 0.866j, -0.5 - 0.866j]
+
+# Fonction pour déterminer vers quelle racine un point converge
+def closest_root(z):
+    distances = [abs(z - root) for root in roots]
+    return np.argmin(distances)  # Retourne l'indice de la racine la plus proche
+
+# Liste pour stocker les résultats des itérations pour chaque point initial
+T = []
+final_points = []  # Liste pour stocker les points finaux après convergence
+colors = []  # Liste pour stocker les couleurs des points
+
+# On répète le processus pour k points initiaux
+for k in range(1000):
+    # Génération du point initial aléatoire dans le plan complexe
+    z = 2 * (np.random.rand() + 1j * np.random.rand()) - 1
+    
+    # Liste pour stocker les itérations de Newton pour ce point
+    trajectory = [z]
+    
+    # Appliquer la méthode de Newton sur n itérations
+    for n in range(10):
+        z = z - ((z**3 - 1) / (3 * z**2))  # Méthode de Newton
+        trajectory.append(z)
+    
+    # Déterminer la racine vers laquelle ce point a convergé
+    root_index = closest_root(trajectory[-1])
+    
+    # Ajouter une couleur pour chaque point de la trajectoire
+    # Zone 1 (racine 1) en rouge, Zone 2 (racine 2) en vert, Zone 3 (racine 3) en bleu
+    color = ['red', 'green', 'blue'][root_index]
+    
+    # Ajouter la trajectoire et les couleurs aux listes
+    T.append(trajectory)
+    final_points.append(trajectory[-1])
+    colors.append(color)
+
+# Création de la figure
+plt.figure()
+
+# Tracer chaque trajectoire dans T avec la couleur correspondante
+for i, trajectory in enumerate(T):
+    color = colors[i]
+    real_parts = [z.real for z in trajectory]
+    imag_parts = [z.imag for z in trajectory]
+    plt.plot(real_parts, imag_parts, '.', color=color, markersize=2)
+
+# # Marquer les trois racines pour référence
+# for i, root in enumerate(roots):
+#     root_color = ['red', 'green', 'blue'][i]
+#     plt.plot(root.real, root.imag, 'o', color='white', markeredgecolor=root_color, 
+#              markersize=10, label=f"Racine {i+1}")
+
+# Axes et titres
+plt.xlabel("Partie réelle")
+plt.ylabel("Partie imaginaire")
+plt.title("Convergence de la méthode de Newton pour k points initiaux aléatoires")
+
+# Ajouter des lignes horizontales et verticales au centre
+plt.axhline(0, color='black', linewidth=0.5)
+plt.axvline(0, color='black', linewidth=0.5)
+plt.grid(True)
+plt.xlim(-2, 2)
+plt.ylim(-2, 2)
+
+# Ajouter une légende
+#plt.legend(loc='upper right')
+
+plt.show()
