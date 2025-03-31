@@ -1,0 +1,88 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 24 14:06:05 2025
+
+@author: elias
+"""
+
+#import cmath
+import numpy as np
+import numpy.linalg as la
+import numpy.random as rd
+import matplotlib.pyplot as plt
+import time as t
+
+#%%
+
+#a,d,b = rd.rand()*10, rd.rand()*10, rd.rand()
+a,d,b = 15,23,3
+A = np.array([[a,b],[b,d]])
+#X = np.array([2**(1/2),2**(1/2),1])
+#X = np.array([[2],[2],[1]])
+r,s = rd.rand(),rd.rand()
+#X = np.array([r,(1-r**2)**(1/2),1])
+X = np.array([r,s,1])
+#X = np.array([r,r,1])
+Rt = la.eig(A)
+
+def fonction(X):
+    x = A[0,0]*X[0] + A[1,0]*X[1] - X[0]*X[2]
+    y = A[0,1]*X[0] + A[1,1]*X[1] - X[1]*X[2]
+    z = X[0]**2 + X[1]**2 - 1
+    return np.array([x,y,z])
+
+def newton(x, eps):
+    delta = 1
+    while delta > eps :
+        V = np.array([[x[0]],[x[1]]])
+        #print(np.shape(A),np.shape(V),np.shape(np.identity(2)),np.shape(A-x[2]*np.identity(2)))
+        #F1 = np.block([A-x[2]*np.identity(2), -V])
+        #print(F1)
+        #F2 = np.block([2* np.transpose(V), 0])
+        #print(F1)
+        #F = np.block([[F1], [F2]])
+        F = np.block([[A-x[2]*np.identity(2), -V], [2* np.transpose(V), 0]])
+        #print(F, la.det(F))
+        if la.det(F) != 0:
+            #print(la.det(F))
+            #print(np.shape(la.inv(F)),np.shape(fonction(x)))
+            X = x - np.matmul(la.inv(F),fonction(x))
+            delta = la.norm(X-x)
+            x = X
+            #print(delta)
+        else:
+            print("BIOS error")
+            return [0,0,0] #"T'es fou ? C'est pas inversible ! Grand malade, va"
+    return X
+
+
+Rp = newton(X, 1e-4)
+
+print(Rp)
+print(Rt)
+
+test = np.matmul(A,np.array([Rp[0],Rp[1]]))- Rp[2]*np.array([Rp[0],Rp[1]])
+
+T = t.time()
+N = 1000
+x, y = np.linspace(-8,8,N), np.linspace(-8,8,N)
+#[X,Y] = np.meshgrid(x, y)
+#Z = X+Y*1j
+C = [[0 for i in range(N)] for j in range(N)]
+
+
+for i in range(N):
+    for j in range(N):
+        #C[i][j] = newton(np.array([np.real(Z[i,j]),np.imag(Z[i,j]),1]), 1e-4)[2]
+        C[i][j] = newton(np.array([x[i],y[j],1]), 1e-1)[2]
+
+print(t.time()-T)
+
+plt.close()
+plt.matshow(C)
+plt.show()
+#%%
+
+
+#def jacobienne(x):
+    
