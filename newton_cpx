@@ -1,0 +1,72 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 18 13:55:41 2025
+
+@author: elias
+"""
+
+import cmath
+import numpy as np
+#import numpy.linalg as la
+import matplotlib.pyplot as plt
+import time as t
+
+epsilon_m = np.finfo(np.float64).eps
+n = 8
+def function(z):
+    return z**n - 1
+
+def derivative(x):
+	epsilon = 1e-6
+	return (function(x+epsilon)-function(x))/epsilon
+
+def newton(a,eps):
+    delta = 1
+    while delta > eps :
+        x = a - function(a)/(derivative(a)+epsilon_m)
+        delta = abs(x - a)
+        a = x
+    return x
+
+T = t.time()
+#print(newton(3+1j, 1e-4))
+N = 10000
+x, y = np.linspace(-5,5,N), np.linspace(-5,5,N)
+[X,Y] = np.meshgrid(x, y)
+Z = X+Y*1j
+
+#T = [newton(z, 1e-4) for z in elt for elt in Z]
+#T = newton(Z, 1e-4)
+T=np.array([[0+0j for i in range(N)] for j in range(N)])
+C = [['r' for i in range(N)] for j in range(N)]
+test = np.array([-2*(n-1-n/2)*np.pi/n, -2*(n+1-n/2)*np.pi/n]) # - (2/3)*2*(n-1-n/2)*np.pi/n \\\  + (2/3)*2*(n-1-n/2)*np.pi/n
+coef = np.array([-1, 1])/2
+test = test + coef*abs(test+np.pi)
+
+#rac1 = [1, (-1 - 1j*3**(1/2))/2, (-1 + 1j*3**(1/2))/2]
+#rac1 = [1 + 0j, 0 + 1j, -1+0j, 0-1j]
+
+
+for i in range(N):
+    for j in range(N):
+        T[i,j] = newton(Z[i,j], 1e-3)
+        C[i][j] = cmath.phase(T[i,j])
+        if not n%2 :
+            if (test[1] < C[i][j] < test[0]):
+                C[i][j] = np.pi
+        """
+        if np.round(T[i,j],3) == np.round(rac1[0],3) :
+            C[i][j] = 0
+        elif np.round(T[i,j],3) == np.round(rac1[1],3) :
+            C[i][j] = 1
+        else :
+            C[i][j] = 2
+        """
+print(t.time()-T)
+
+plt.close()
+plt.matshow(C)
+
+plt.show()
+
+
