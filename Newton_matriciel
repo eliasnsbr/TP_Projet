@@ -1,0 +1,159 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 31 15:30:22 2025
+
+@author: elias
+"""
+#%%
+#import cmath
+import numpy as np
+import numpy.linalg as la
+import numpy.random as rd
+import matplotlib.pyplot as plt
+import time as t
+
+n = 3
+
+def mat_sym_def_pos(n):
+    A = np.zeros((n,n))
+    for i in range(n):
+        A[i,i] = rd.rand()*10
+        for j in range(i,n):
+            A[i,j] = rd.rand()
+            A[j,i] = A[i,j]
+    if min(la.eig(A)[0]) < 0:
+        A += min(la.eig(A)[0])*np.identity(n)
+    return A
+
+# =============================================================================
+# def mat_sym_def_pos(n):
+#     B = np.zeros((n,n))
+#     for i in range(n):
+#         for j in range(n):
+#             B[i,j] = rd.rand()
+#     A = np.matmul(B, np.transpose(B))
+#     return A
+# =============================================================================
+
+# =============================================================================
+# def function(A,X):
+#     R = np.zeros(np.shape(X))
+#     n = len(R)
+#     for i in range(n-1):
+#         for j in range(n-1):
+#             R[i] += A[j,i]*X[j]
+#         R[i] -= X[i]*X[n-1]
+#         R[n-1] += X[i]**2
+#     R[n-1] -= 1
+#     return R
+# =============================================================================
+
+def fonction(A,X):
+    n = len(A)
+    V = np.array([[e for e in X[0][:n]]])
+    Ri = np.block([[np.matmul(A-X[0][n]*np.identity(n),np.transpose(V))], [np.matmul(V,np.transpose(V))-1]])
+    R = np.array([e for e in Ri])
+# =============================================================================
+#     print(V)
+#     print(np.shape(V))
+#     print(np.shape(R))
+# =============================================================================
+    return R
+
+def jacobienne(A,X):
+    n = len(A)
+# =============================================================================
+#     print(n)
+#     print(X[0])
+#     print("h")
+# =============================================================================
+    V = np.array([[e for e in X[0][:n]]])
+# =============================================================================
+#     print(np.shape(V))
+#     print(V)
+#     print(np.shape(A-X[0][n]*np.identity(n)))
+#     print(np.shape(-np.transpose(V)))
+#     G = np.block([A-X[0][n]*np.identity(n), -np.transpose(V)])
+#     H = np.block([2*V, 0])
+#     print(np.shape(G),np.shape(H))
+#     print(G,H)
+#     I = np.block([[G],[H]])
+#     print(I)
+# =============================================================================
+    J = np.block([[X[0][n]*np.identity(n) - A, np.transpose(V)], [V, 0]])
+    return J
+
+def newton(A, X, eps):
+    x = X
+    delta = 1
+    k = 0
+    while delta > eps and k < 10:
+        J = jacobienne(A,x)
+        if la.det(J) == 0:
+            print("BIOS error")
+            return None
+        else :
+            #print(np.shape(J))
+            G = fonction(A, x)
+# =============================================================================
+#             print(G)
+#             print(np.shape(np.transpose(G)))
+#             print(np.shape(np.matmul(la.inv(J),G)))
+#             print(np.shape([x]))
+# =============================================================================
+            #y = np.transpose([x]) - np.matmul(la.inv(J),G)
+            y = x - np.matmul(la.inv(J),G)
+            delta = la.norm(y-x)
+            x = y
+# =============================================================================
+#             print(x)
+# =============================================================================
+        k+=1
+    """print(eps-delta)
+    print(k)
+    y2 = y - np.matmul(la.inv(J),fonction(A, y))
+    delta = la.norm(y2-y)
+    print(y2[n])
+    """
+    return y
+
+A = mat_sym_def_pos(n)
+Rt = la.eig(A)
+
+# =============================================================================
+# X = np.array([rd.rand() for i in range(n+1)])
+# 
+# #print(X)
+# #print(A)
+# print(Rt[0])
+# Rp = newton(A, X, 1e-3)
+# print(Rp[n])
+# =============================================================================
+
+
+
+T = t.time()
+N = 200
+
+##%%
+x, y = np.linspace(-8,8,N), np.linspace(-8,8,N)
+z = [0 for i in range(n-1)]
+C = [[0 for i in range(N)] for j in range(N)]
+
+
+for i in range(N):
+    for j in range(N):
+        #C[i][j] = newton(np.array([np.real(Z[i,j]),np.imag(Z[i,j]),1]), 1e-4)[2]
+        X = np.array([[x[i],y[j]]+z])
+# =============================================================================
+#         print(np.shape(X))
+# =============================================================================
+        C[i][j] = newton(A, X, 1e-1)[n]
+
+print(t.time()-T)
+
+print(Rt[0])
+plt.close()
+plt.matshow(C)
+plt.colorbar()
+plt.show()
