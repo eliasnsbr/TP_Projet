@@ -4,6 +4,137 @@ Created on Mon Mar 31 15:30:22 2025
 
 @author: elias
 """
+import cProfile
+import pstats
+
+#def main():
+#import cmath
+import numpy as np
+import numpy.linalg as la
+import numpy.random as rd
+import matplotlib.pyplot as plt
+import time as t
+
+n = 4
+
+def mat_sym_def_pos(n):
+    A = np.zeros((n,n))
+    for i in range(n):
+        A[i,i] = rd.rand()*10
+        for j in range(i,n):
+            A[i,j] = rd.rand()
+            A[j,i] = A[i,j]
+    if min(la.eig(A)[0]) < 0:
+        A -= 2*min(la.eig(A)[0])*np.identity(n)
+    return A
+
+def fonction(A, X):
+    n = len(A)
+    V = X[0][:n].reshape(1, -1)
+    top = (X[0][n] * np.eye(n) - A) @ V.T
+    bottom = 0.5 * (V @ V.T) - 1
+    return np.vstack((top, bottom))
+
+def jacobienne(A, X, k):
+    n = len(A)
+    V = X[0][:n].reshape(1, -1)
+    top = np.hstack((X[0][n]*np.eye(n) - A, V.T))
+    bottom = np.hstack((V, np.zeros((1, 1))))
+    return np.vstack((top, bottom))
+
+def newton(A, X, eps):
+    x = X
+    delta = float('inf')
+    k = 0
+    while delta > eps and k < 10:
+        J = jacobienne(A, x, k)
+        G = fonction(A, x)
+        try:
+            dx = np.transpose(la.solve(J, G))
+        except la.LinAlgError:
+            print("Singular Jacobian matrix encountered.")
+            return None
+        y = x - dx
+        delta = la.norm(y - x)
+        x = y
+        k += 1
+    return x
+
+A = mat_sym_def_pos(n)
+Rt = la.eig(A)
+
+X = np.array([[rd.rand() for i in range(n+1)]])
+# =============================================================================
+# print(np.shape(X))
+# #print(A)
+# print(Rt[0])
+# =============================================================================
+Rp = newton(A, X, 1e-3)
+
+
+def affichage(N,A,X,eps):
+    x, y = np.linspace(-4,4,N), np.linspace(-4,4,N)
+    z = [0 for i in range(n-1)]
+    C = np.zeros((N, N))
+    
+    rounded_eigs = np.round(Rt[0], 1)
+    for i in range(N):
+        for j in range(N):
+            X = np.array([[x[i],y[j]]+z])
+            B = newton(A, X, 1e-3)[0][n]
+            if np.round(B,1) in rounded_eigs :
+                C[i][j] = B
+            else :
+                #print(B)
+                C[i][j] = C[i][j-1]
+    nm = name()
+    plt.imsave(nm, C)
+    return C
+
+def name():
+    nm = str(n) + "x" + str(n) + "_" + str(N) + "__A_"
+    for e in A:
+        for f in e:
+            nm += "-" + str(f)
+    nm += "__vp_"
+    for e in Rt[0]:
+        nm += "_" + str(round(e,3))
+    nm += ".png"
+    return nm
+
+N = 50
+
+T = t.time()
+C = affichage(N,A,X,1e-1)
+print(t.time()-T)
+
+print(Rt[0])
+print(Rp[0][n])
+
+
+cProfile.run('affichage(N,A,X,1e-4)', 'output.prof')
+
+# Load and print nicely
+p = pstats.Stats('output.prof')
+p.sort_stats('cumulative').print_stats(20)
+#cProfile.run('main()', 'profiling_results.prof')
+
+
+plt.close()
+plt.matshow(C)
+plt.colorbar()
+plt.show()
+
+
+# =======================================================================================================================================================================================================================================
+
+"""
+
+
+
+
+
+
 #%%
 #import cmath
 import numpy as np
@@ -157,3 +288,4 @@ plt.close()
 plt.matshow(C)
 plt.colorbar()
 plt.show()
+"""
