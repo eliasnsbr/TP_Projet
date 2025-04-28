@@ -1,0 +1,112 @@
+import numpy as np
+import cmath
+import matplotlib.pyplot as plt
+import time
+from matplotlib import cm
+from matplotlib.colors import Normalize
+from PIL import Image
+import os
+
+# -------------------------------
+# Paramètres utilisateur
+n = 6               # degré du polynôme
+N = 2000             # résolution de la grille
+frames = 60         # nombre d'images dans le GIF
+translation_range = 2  # translation maximale (axe réel)
+frame_folder = "frames_lin"  # <-- changé ici
+gif_path = "newton_translated_lin.gif"
+
+# -------------------------------
+# Grille complexe Z
+x, y = np.linspace(-2, 2, N), np.linspace(-2, 2, N)
+X, Y = np.meshgrid(x, y)
+Z0 = X + Y * 1j
+epsilon_m = np.finfo(np.float64).eps
+
+# -------------------------------
+# Création du dossier frames_lin/
+if not os.path.exists(frame_folder):
+    os.makedirs(frame_folder)
+
+# -------------------------------
+# Fonctions
+def get_roots(trans):
+    base_roots = [np.exp(2j * np.pi * k / n) for k in range(n)]
+    base_roots[0] += trans
+    return base_roots
+
+def build_polynomial(roots):
+    return np.poly(roots)
+
+def function(z, coeffs):
+    return np.polyval(coeffs, z)
+
+def derivative(z, coeffs):
+    dcoeffs = np.polyder(coeffs)
+    return np.polyval(dcoeffs, z)
+
+def newton_vectorized(Z, coeffs, eps=1e-3, max_iter=100):
+    Z = Z.copy()
+    for _ in range(max_iter):
+        F = function(Z, coeffs)
+        dF = derivative(Z, coeffs) + epsilon_m
+        delta = F / dF
+        Z -= delta
+        if np.all(np.abs(delta) < eps):
+            break
+    return Z
+
+# -------------------------------
+# Génération des frames
+images = []
+
+for f in range(frames):
+    print(f"Frame {f+1}/{frames}")
+    t0 = time.time()
+
+    # Translation linéaire d'une racine
+    trans = translation_range * (f / (frames - 1))
+    roots = get_roots(trans)
+    coeffs = build_polynomial(roots)
+
+    # Newton vectorisé sur toute la grille
+    T = newton_vectorized(Z0, coeffs)
+
+    # Phase de la solution finale
+    C = np.angle(T)
+
+    # Convertir phase en image couleur
+    norm = Normalize(vmin=-np.pi, vmax=np.pi)
+    img = cm.hsv(norm(C))
+    img = (img[:, :, :3] * 255).astype(np.uint8)
+
+    # -------------------------------
+    # Ajout des disques pour les racines
+    fig, ax = plt.subplots(figsize=(6,6), dpi=N//6)
+    ax.imshow(img, extent=[-2, 2, -2, 2], origin='lower')
+
+    for root in roots:
+        ax.plot(root.real, root.imag, 'wo', markersize=5, markeredgecolor='black', markeredgewidth=1.5)
+
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-2, 2)
+    ax.axis('off')
+
+    # Sauvegarder la figure
+    frame_path = os.path.join(frame_folder, f"frame_lin_{f:03}.png")  # <-- changé ici
+    fig.savefig(frame_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    im_pil = Image.open(frame_path)
+    images.append(im_pil)
+
+    print(f"  Image enregistrée : {frame_path} ({time.time() - t0:.2f} sec)")
+
+# -------------------------------
+# Création du GIF final
+images[0].save(gif_path,
+               save_all=True,
+               append_images=images[1:],
+               duration=100,
+               loop=0)
+print(f"\n✅ GIF enregistré sous '{gif_path}'")
