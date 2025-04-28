@@ -1,0 +1,162 @@
+from concurrent.futures import ProcessPoolExecutor
+import numpy as np
+import os
+import numpy.linalg as la
+import numpy.random as rd
+import matplotlib.pyplot as plt
+import time as t
+from datetime import datetime
+from PIL import Image
+from io import BytesIO
+
+
+batch_size = 100  # Paramètre pour découper en batchs
+N = 100  # Taille de la grille
+n = 3  # Taille de la matrice A
+I = np.eye(n)  # Matrice identité
+
+# Fonction pour sauvegarder les matrices dans un fichier texte
+def enregistrer_matrice(A, chemin_fichier="Images/Matrices.txt"):
+    n = A.shape[0]
+    valeurs_propres = np.linalg.eigvals(A)
+    dossier = os.path.dirname(chemin_fichier)
+    os.makedirs(dossier, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(chemin_fichier, "a") as f:
+        f.write(f"Horodatage : {timestamp}\n")
+        f.write(f"Matrice {n}x{n},  N = {N}:\n")
+        f.write("Valeurs propres : " + ", ".join(f"{vp:.4f}" for vp in valeurs_propres) + "\n")
+        for ligne in A:
+            f.write("  ".join(f"{val:f}" for val in ligne) + "\n")
+        f.write("\n" + "="*60 + "\n\n")
+    print(f"Matrice enregistrée avec timestamp dans '{chemin_fichier}'.")
+
+# Fonction pour générer une matrice symétrique définie positive aléatoire
+def mat_sym_def_pos(n):
+    A = np.zeros((n, n))
+    for i in range(n):
+        A[i, i] = rd.rand() * 10
+        for j in range(i, n):
+            A[i, j] = rd.rand()
+            A[j, i] = A[i, j]
+    if min(la.eig(A)[0]) < 0:
+        A -= 2 * min(la.eig(A)[0]) * np.identity(n)
+    return A
+
+# Fonction pour afficher les résultats sous forme d'image
+def affichage(N, A, X, eps, gif_frames, Rt):
+    x, y = np.linspace(-n, n, N), np.linspace(-n, n, N)
+    z = [0 for _ in range(n - 1)]
+    C = np.zeros((N, N))
+    rounded_eigs = np.round(Rt[0], 1)
+
+    # Découper en batchs
+    points = [(i, j) for i in range(N) for j in range(N)]
+    batches = [points[k:k + batch_size] for k in range(0, len(points), batch_size)]
+    
+    args = [(batch, A, x, y, z, eps, rounded_eigs) for batch in batches]
+
+    with ProcessPoolExecutor() as executor:
+        for batch_result in executor.map(eval_batch, args):
+            for i, j, val in batch_result:
+                if val is not None:
+                    C[i][j] = val 
+                elif j > 0:
+                    C[i][j] = C[i][j-1]
+                else:
+                    C[i][j] = 0
+
+    # Sauvegarder l'image de la matrice A sous forme de frame pour le GIF
+    fig, ax = plt.subplots()
+    ax.matshow(C, cmap='viridis')
+    ax.set_title(f"Frame: {len(gif_frames)}")
+    gif_frames.append(fig)  # Ajouter la frame à la liste des frames
+
+    # Modifier légèrement la matrice A pour la prochaine frame
+    A += 0.01 * np.random.randn(*A.shape)
+
+def eval_batch(args):
+    batch_indices, A, x, y, z, eps, rounded_eigs = args
+    results = []
+    for (i, j) in batch_indices:
+        X = np.array([[x[i], y[j]] + z])
+        result = newton(A, X, eps)
+        if result is not None:
+            val = result[0][n]
+            if np.round(val, 1) in rounded_eigs:
+                results.append((i, j, val))
+            else:
+                results.append((i, j, None))
+        else:
+            results.append((i, j, None))
+    return results
+
+# Fonction principale pour créer le GIF
+def create_gif():
+	A = mat_sym_def_pos(n)
+	Rt = la.eig(A)
+	X = np.array([[rd.rand() for _ in range(n+1)]])
+	gif_frames = []
+	for _ in range(5):
+		affichage(N, A, X, 1e-1, gif_frames, Rt)
+    # Enregistrer les frames dans un fichier GIF
+	# Convertir toutes les frames en images PIL et les sauvegarder dans un GIF
+	gif_frames_pil = [fig_to_image(frame) for frame in gif_frames]
+	gif_frames_pil[0].save("matrix_evolution.gif", save_all=True, append_images=gif_frames_pil[1:], duration=200, loop=0)
+
+
+# Convertir un matplotlib figure en image PIL
+def fig_to_image(fig):
+    # Sauvegarde de l'image dans un buffer
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    # Convertir le buffer en image PIL
+    img = Image.open(buf)
+    buf.close()
+    plt.close(fig)
+    return img
+
+def fonction_vect(A, X_batch):
+    B = X_batch.shape[0]
+    V = X_batch[:, :n].reshape(B, n, 1)
+    lmbdas = X_batch[:, n].reshape(B, 1, 1)
+    top = np.matmul((lmbdas * I - A), V)
+    VT = np.transpose(V, axes=(0, 2, 1))
+    bottom = 0.5 * np.matmul(VT, V) - 1
+    F = np.concatenate([top, bottom], axis=1)
+    return F.reshape(B, -1)
+
+def jacobienne(A, X, k):
+    V = X[0][:n].reshape(1, -1)
+    top = np.hstack((X[0][n]*I - A, V.T))
+    bottom = np.hstack((V, np.zeros((1, 1))))
+    return np.vstack((top, bottom))
+
+def newton(A, X, eps):
+    x = X
+    delta = float('inf')
+    k = 0
+    while delta > eps and k < 5:
+        J = jacobienne(A, x, k)
+        G = fonction_vect(A, x)[0]
+        try:
+            if np.linalg.cond(J) < 1e12:
+                dx = np.transpose(la.solve(J, G.reshape(-1, 1)))
+            else:
+                print("Jacobian is ill-conditioned.")
+                return None
+        except la.LinAlgError:
+            print("Singular Jacobian matrix encountered.")
+            return None
+        y = x - dx
+        delta = la.norm(y - x)
+        x = y
+        k += 1
+    return x
+
+# Exécuter la création du GIF
+if __name__ == "__main__":
+    T = t.time()
+    create_gif()
+    print(t.time() - T)
