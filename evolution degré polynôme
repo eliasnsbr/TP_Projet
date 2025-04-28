@@ -1,0 +1,92 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+import os
+from PIL import Image
+
+# -------------------------------
+# Paramètres
+N = 5000                # résolution grille
+n_min, n_max = 2, 12    # valeurs de n
+frame_folder = "frames"
+gif_path = "newton_phases.gif"
+epsilon_m = np.finfo(np.float64).eps
+
+# -------------------------------
+# Création du dossier frames/
+if not os.path.exists(frame_folder):
+    os.makedirs(frame_folder)
+
+# -------------------------------
+# Grille complexe
+x = np.linspace(-5, 5, N)
+y = np.linspace(-5, 5, N)
+X, Y = np.meshgrid(x, y)
+Z0 = X + 1j * Y
+
+images = []
+
+# -------------------------------
+# Boucle sur n
+for n in range(n_min, n_max+1):
+    print(f"Frame n = {n}")
+    t0 = time.time()
+
+    # Fonction et dérivée
+    def function(z):
+        return z**n - 1
+
+    def derivative(z):
+        epsilon = 1e-6
+        return (function(z+epsilon) - function(z)) / epsilon
+
+    # Newton vectorisé
+    Z = np.copy(Z0)
+    for _ in range(30):  # nombre d'itérations
+        Z = Z - function(Z) / (derivative(Z) + epsilon_m)
+
+    # Calcul de la phase
+    phases = np.angle(Z)
+
+    # Correction pour n pair
+    if n % 2 == 0:
+        test = np.array([-2*(n-1-n/2)*np.pi/n, -2*(n+1-n/2)*np.pi/n])
+        coef = np.array([-1, 1])/2
+        test = test + coef*np.abs(test+np.pi)
+        mask = (test[1] < phases) & (phases < test[0])
+        phases[mask] = np.pi
+
+    # Affichage
+    fig, ax = plt.subplots(figsize=(6, 6))
+    im = ax.matshow(phases, cmap='hsv', extent=[-5, 5, -5, 5])
+    ax.set_axis_off()
+
+    # Petits disques aux racines
+    roots = np.array([np.exp(2j * np.pi * k / n) for k in range(n)])
+    theta = np.linspace(0, 2*np.pi, 100)
+    r_disk = 0.2
+    for r in roots:
+        cx, cy = r.real, r.imag
+        ax.fill(cx + r_disk*np.cos(theta),
+                cy + r_disk*np.sin(theta),
+                'white', edgecolor='black', linewidth=1.5, alpha=0.8)
+
+    # Sauvegarde
+    frame_path = os.path.join(frame_folder, f"frame_{n:02d}.png")
+    fig.savefig(frame_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    # Chargement pour le GIF
+    im_pil = Image.open(frame_path)
+    images.append(im_pil)
+
+    print(f"  Image enregistrée : {frame_path} ({time.time() - t0:.2f} sec)")
+
+# -------------------------------
+# Création du GIF final
+images[0].save(gif_path,
+               save_all=True,
+               append_images=images[1:],
+               duration=200,
+               loop=0)
+print(f"\n✅ GIF enregistré sous '{gif_path}'")
