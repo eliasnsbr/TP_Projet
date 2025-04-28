@@ -1,0 +1,154 @@
+import cProfile
+from concurrent.futures import ProcessPoolExecutor
+import numpy as np
+import os
+import numpy.linalg as la
+import numpy.random as rd
+import matplotlib.pyplot as plt
+import time as t
+from datetime import datetime
+import pstats
+
+batch_size = 200  # <-- Nouveau paramètre clé !
+
+def eval_batch(args):
+    batch_indices, A, x, y, z, eps, rounded_eigs = args
+    results = []
+    for (i, j) in batch_indices:
+        X = np.array([[x[i], y[j]] + z])
+        result = newton(A, X, eps)
+        if result is not None:
+            val = result[0][n]
+            if np.round(val, 1) in rounded_eigs:
+                results.append((i, j, val))
+            else:
+                results.append((i, j, None))
+        else:
+            results.append((i, j, None))
+    return results
+
+def affichage(N, A, X, eps):
+    x, y = np.linspace(-n, n, N), np.linspace(-n, n, N)
+    z = [0 for _ in range(n-1)]
+    C = np.zeros((N, N))
+    rounded_eigs = np.round(Rt[0], 1)
+
+    # Découpage en batchs
+    points = [(i, j) for i in range(N) for j in range(N)]
+    batches = [points[k:k + batch_size] for k in range(0, len(points), batch_size)]
+    
+    args = [(batch, A, x, y, z, eps, rounded_eigs) for batch in batches]
+
+    with ProcessPoolExecutor() as executor:
+        for batch_result in executor.map(eval_batch, args):
+            for i, j, val in batch_result:
+                if val is not None:
+                    C[i][j] = val
+                elif j > 0:
+                    C[i][j] = C[i][j-1]
+                else:
+                    C[i][j] = 0
+
+    nm = name()
+    enregistrer_matrice(A)
+    plt.imsave(nm, C)
+    return C
+
+
+n = 5
+I = np.eye(n)
+
+def mat_sym_def_pos(n):
+    A = np.zeros((n,n))
+    for i in range(n):
+        A[i,i] = rd.rand()*10
+        for j in range(i,n):
+            A[i,j] = rd.rand()
+            A[j,i] = A[i,j]
+    if min(la.eig(A)[0]) < 0:
+        A -= 2*min(la.eig(A)[0])*np.identity(n)
+    return A
+
+def fonction_vect(A, X_batch):
+    B = X_batch.shape[0]
+    V = X_batch[:, :n].reshape(B, n, 1)
+    lmbdas = X_batch[:, n].reshape(B, 1, 1)
+    top = np.matmul((lmbdas * I - A), V)
+    VT = np.transpose(V, axes=(0, 2, 1))
+    bottom = 0.5 * np.matmul(VT, V) - 1
+    F = np.concatenate([top, bottom], axis=1)
+    return F.reshape(B, -1)
+
+def jacobienne(A, X, k):
+    V = X[0][:n].reshape(1, -1)
+    top = np.hstack((X[0][n]*I - A, V.T))
+    bottom = np.hstack((V, np.zeros((1, 1))))
+    return np.vstack((top, bottom))
+
+def newton(A, X, eps):
+    x = X
+    delta = float('inf')
+    k = 0
+    while delta > eps and k < 10:
+        J = jacobienne(A, x, k)
+        G = fonction_vect(A, x)[0]
+        try:
+            if np.linalg.cond(J) < 1e12:
+                dx = np.transpose(la.solve(J, G.reshape(-1, 1)))
+            else:
+                print("Jacobian is ill-conditioned.")
+                return None
+        except la.LinAlgError:
+            print("Singular Jacobian matrix encountered.")
+            return None
+        y = x - dx
+        delta = la.norm(y - x)
+        x = y
+        k += 1
+    return x
+
+def enregistrer_matrice(A, chemin_fichier="Images/Matrices.txt"):
+    n = A.shape[0]
+    valeurs_propres = np.linalg.eigvals(A)
+    dossier = os.path.dirname(chemin_fichier)
+    os.makedirs(dossier, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(chemin_fichier, "a") as f:
+        f.write(f"Horodatage : {timestamp}\n")
+        f.write(f"Matrice {n}x{n},  N = {N}:\n")
+        f.write("Valeurs propres : " + ", ".join(f"{vp:.4f}" for vp in valeurs_propres) + "\n")
+        for ligne in A:
+            f.write("  ".join(f"{val:f}" for val in ligne) + "\n")
+        f.write("\n" + "="*60 + "\n\n")
+    print(f"Matrice enregistrée avec timestamp dans '{chemin_fichier}'.")
+
+def name():
+    nm = "Images/" + str(n) + "x" + str(n) + "_" + str(N)
+    nm += "__vp_"
+    for e in Rt[0]:
+        nm += "_" + str(round(e,3))
+    nm += ".png"
+    return nm
+
+if __name__ == "__main__":
+    N = 300
+
+    A = mat_sym_def_pos(n)
+    Rt = la.eig(A)
+    X = np.array([[rd.rand() for i in range(n+1)]])
+    Rp = newton(A, X, 1e-3)
+
+    T = t.time()
+    C = affichage(N, A, X, 1e-1)
+    print(t.time() - T)
+    print(Rt[0])
+    print(Rp[0][n])
+
+    cProfile.run('affichage(N,A,X,1e-3)', 'output.prof')
+    p = pstats.Stats('output.prof')
+    p.sort_stats('cumulative').print_stats(20)
+
+    plt.close()
+    plt.matshow(C)
+    plt.colorbar()
+    plt.show()
