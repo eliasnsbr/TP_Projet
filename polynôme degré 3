@@ -1,0 +1,100 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from PIL import Image
+import os
+import time
+
+# -------------------------------
+# Paramètres
+N = 2000          # Résolution
+max_iter = 20    # Max itérations Newton
+frames = 60      # Nombre de frames
+gif_filename = 'newton_basin_roots.gif'
+frame_folder = "frames_basin_roots"
+r_disk = 0.05    # Rayon des disques racines
+eps = 1e-6       # Tolérance
+
+# -------------------------------
+# Grille complexe
+x = np.linspace(-2, 2, N)
+y = np.linspace(-2, 2, N)
+X, Y = np.meshgrid(x, y)
+Z0 = X + 1j * Y
+
+# -------------------------------
+# Dossier pour frames
+if not os.path.exists(frame_folder):
+    os.makedirs(frame_folder)
+
+# -------------------------------
+# Stocker les images
+images = []
+
+start = time.time()
+for k in range(frames):
+    print(f"Frame {k+1}/{frames}")
+
+    t = k / frames  # Temps entre 0 et 1
+
+    # Définir les racines qui varient :
+    r1 = 1.5 * np.cos(2 * np.pi * t)  # racine réelle qui oscille
+    a = 0.5 * np.cos(2 * np.pi * t)   # partie réelle des conjuguées
+    b = 0.8 * np.sin(2 * np.pi * t)   # partie imaginaire (positif pour une, négatif pour l'autre)
+
+    roots = np.array([r1, a + 1j * b, a - 1j * b])
+
+    # Construire les coefficients du polynôme
+    coeffs = np.poly(roots)  # np.poly donne les coefficients à partir des racines
+
+    # Définir fonction polynôme et sa dérivée
+    def poly_f(z):
+        return np.polyval(coeffs, z)
+
+    def poly_df(z):
+        return np.polyval(np.polyder(coeffs), z)
+
+    # Newton
+    Z = Z0.copy()
+    for _ in range(max_iter):
+        F = poly_f(Z)
+        dF = poly_df(Z)
+        Z -= F / (dF + eps)
+
+    # Assigner chaque point à la racine la plus proche
+    distances = np.stack([np.abs(Z - r) for r in roots], axis=-1)
+    basin = np.argmin(distances, axis=-1)
+
+    # -------------------------------
+    # Tracer
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=N//6)
+    cmap = ListedColormap(plt.cm.hsv(np.linspace(0, 1, 4))[:3])
+    ax.imshow(basin, origin='lower', extent=[-2, 2, -2, 2], cmap=cmap)
+
+    # Dessiner les racines
+    theta = np.linspace(0, 2*np.pi, 100)
+    for r in roots:
+        cx, cy = r.real, r.imag
+        x_disk = cx + r_disk * np.cos(theta)
+        y_disk = cy + r_disk * np.sin(theta)
+        ax.fill(x_disk, y_disk, color='white', edgecolor='black', linewidth=1.5, alpha=0.7)
+
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-2, 2)
+    ax.axis('off')
+
+    frame_path = os.path.join(frame_folder, f"frame_{k:03}.png")
+    fig.savefig(frame_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    images.append(Image.open(frame_path))
+
+# -------------------------------
+# Créer le GIF
+images[0].save(gif_filename,
+               save_all=True,
+               append_images=images[1:],
+               duration=100,
+               loop=0)
+
+print(f"\n✅ GIF enregistré sous '{gif_filename}' en {time.time() - start:.2f} secondes.")
